@@ -1,3 +1,5 @@
 commit.txt
 *.pro.user
 *.glade~
+.vscode
+servidor/bin

@@ -5,6 +5,7 @@
 */
 
 #include "servidor.h"
+#include "comum.h"
 #include <stdio.h>
 #include <Windows.h>
 
@@ -45,11 +46,12 @@ int escutar_conexoes(SOCKET sock)
 struct host_remoto *aceitar_conexao(SOCKET sock)
 {
     SOCKET sock_resultado;
-    rhost host;
+    struct host_remoto *host = NULL;
     struct sockaddr_in end_socket;
+    int size = sizeof(struct sockaddr_in);
 
     // Aceita a solicitação de conexão remota
-    sock_resultado = accept(sock, 0, 0);
+    sock_resultado = accept(sock, (struct sockaddr*)&end_socket, &size);
     if(sock_resultado == INVALID_SOCKET) 
     {
         fprintf(stderr, "Falha ao aceitar conexão remota: %u\n", WSAGetLastError());
@@ -68,13 +70,46 @@ struct host_remoto *aceitar_conexao(SOCKET sock)
     }
 
     // Armazena as informações do host remoto na estrutura
-    host.endereco_ip = "127.0.0.1";
-    host.sock = sock_resultado;
+    host = (struct host_remoto*)malloc(sizeof(struct host_remoto));
+    if(host == NULL)
+        return NULL;
 
-    return &host; 
+    host->endereco_ip = inet_ntoa(end_socket.sin_addr);
+    host->sock = sock_resultado;
+    host->porta = end_socket.sin_port;
+
+    return host; 
 }
 
+/* Recebe os dados de um host remoto */
 int ler(SOCKET sock, void *buffer, int tam_buffer)
 {
     return recv(sock, buffer, tam_buffer, 0);
+}
+
+/*
+    É a função principal do servidor. Aqui toda a parte de comunicação com o arduino é realizada
+*/
+extern void execute(void *param)
+{
+    SOCKET p = (SOCKET)param;
+    struct host_remoto *host = NULL;
+
+    if(escutar_conexoes(p) != SOCKET_ERROR)
+    {
+        fprintf(stderr, "Aguardando conexões ...\n");
+        host = aceitar_conexao(p);
+        if(host != NULL)
+        {
+            fprintf(stderr, "Arduino conectado -> IP: %s -> porta %hu\n", host->endereco_ip, host->porta);
+
+            // Libera a memória alocada para armazenar os dados do arduino conectado
+            if(host)
+                free(host);
+        } else {
+            fprintf(stderr, "Falha ao receber conexao: %d\n", WSAGetLastError());
+        }
+    } else {
+        fprintf(stderr, "Falha ao aguardar conexões: %d\n", WSAGetLastError());
+    }
 }

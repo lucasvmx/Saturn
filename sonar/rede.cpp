@@ -5,6 +5,7 @@
 */
 
 #include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
 #include "comum.h"
 #include "rede.h"
 
@@ -27,15 +28,23 @@ rede::~rede()
 	Returna true em caso de sucesso e falso caso contrário
 */
 
-bool rede::conectarRedeWifi(char *nome_rede, const char *senha, uint8_t *status)
+bool rede::conectarRedeWifi(const char *nome_rede, const char *senha, uint8_t *status)
 {
 	int statusConexao;
-	
-	// Coloca o ESP8266 em modo de cliente wifi
-	WiFi.mode(WIFI_STA);
-	
+	ESP8266WiFiClass wifi;
+	ESP8266WiFiMulti multi;
+
+	if(wifi.status() == WL_NO_SHIELD)
+	{
+		// Significa que a placa não possui shield wifi
+		Serial.println( "A placa não dipõe de módulo WiFi");
+		return false;
+	}
+
+	multi.addAP(nome_rede, senha);
+
 	// Inicializa a conexão com a rede wifi especificada
-	statusConexao = WiFi.begin(nome_rede, senha);
+	statusConexao = multi.run();
 	if(statusConexao != WL_CONNECTED)
 	{
 		*status = statusConexao;
@@ -55,17 +64,21 @@ bool rede::conectarRedeWifi(char *nome_rede, const char *senha, uint8_t *status)
 bool rede::enviarLeituraSonar(double valor)
 {
 	WiFiClient arduino;
-	const uint16_t porta = 3000;
 	
 	// Tenta realizar a conexão com o host remoto, caso a conexão não tenha sido estabelecida anteriormente
 	if(!arduino.connected()) 
 	{
-		if(!arduino.connect("127.0.0.1", porta))
+		if(!arduino.connect("192.168.15.4", porta))
 			return false;
+
+		// Ativa o flag para manter a conexão ativa
+		arduino.keepAlive();
 	}
 	
 	// Envia a distância lida pelo sonar com quatro casas decimais
 	arduino.println(String(valor, 4));
 	
+	Serial.println( "Dados do sonar enviados com sucesso");
+
 	return true;
 }
