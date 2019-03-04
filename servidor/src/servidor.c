@@ -8,6 +8,9 @@
 #include "comum.h"
 #include <stdio.h>
 #include <Windows.h>
+#include <sqlite3.h>
+#include <io.h>
+#include <stdbool.h>
 
 /*
     Cria um socket TCP para envio e recepção de dados
@@ -26,7 +29,7 @@ int vincular_servidor(SOCKET sock, const char *IP, int porta)
 {
     struct sockaddr_in endereco_sock;
     
-    // Configura a estrutura
+    //- Configura a estrutura
     endereco_sock.sin_port = htons((u_short)porta);
     endereco_sock.sin_family = AF_INET;
     endereco_sock.sin_addr.S_un.S_addr = inet_addr(IP);
@@ -58,14 +61,12 @@ struct host_remoto *aceitar_conexao(SOCKET sock)
         return NULL;
     }
 
-    // Ativa o modo keep-alive no socket
+    // Ativa o flag keepalive
     int optval = 1;
-    int optlen = sizeof(optval);
 
-    if(setsockopt(sock_resultado, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0)
+    if(setsockopt(sock_resultado, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof(int)) == -1)
     {
-        fprintf(stderr, "Falha ao ativar o modo keep-alive: %u\n", WSAGetLastError());
-        shutdown(sock, 2);
+        fprintf(stderr, "Falha ao configurar keepalive: %d\n", WSAGetLastError());
         return NULL;
     }
 
@@ -90,26 +91,197 @@ int ler(SOCKET sock, void *buffer, int tam_buffer)
 /*
     É a função principal do servidor. Aqui toda a parte de comunicação com o arduino é realizada
 */
-extern void execute(void *param)
+extern void executar(void *param)
 {
     SOCKET p = (SOCKET)param;
     struct host_remoto *host = NULL;
+    char nome_banco_dados[64];
+    char instrucao_sql[256];
+    char buffer[256];
+    int sqlite_status;
+    int flags_abertura;
+    char *errMsg = 0;
+    SYSTEMTIME *systime = NULL;
 
+    // Verificar se já existe um banco de dados em disco 
+    systime = (SYSTEMTIME*)malloc(sizeof(SYSTEMTIME));
+    if(systime == NULL)
+    {
+        fprintf(stderr, "Erro ao reservar memoria: %lu\n", GetLastError());
+        return;
+    }
+
+    GetLocalTime(systime);
+    
+    _snprintf(nome_banco_dados, TAM(nome_banco_dados), "leitura_%02d%02d%02d.sdb", systime->wDay, systime->wMonth, systime->wYear);
+    
+    // Libera a memória alocada
+    free(systime);
+
+    if(access(nome_banco_dados, 0) == -1)
+    {
+        // O banco de dados não existe e precisa ser criado
+        flags_abertura = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;   
+    } else {
+        flags_abertura = SQLITE_OPEN_READWRITE;
+    }
+
+    sqlite_status = sqlite3_open_v2(nome_banco_dados, &banco, flags_abertura, NULL);
+    if(sqlite_status != SQLITE_OK) 
+    {
+        fprintf(stderr, "Falha ao abrir banco de dados: %s\n", sqlite3_errmsg(banco));
+        return;
+    }
+
+    /*
+        Formato do banco de dados
+        _______________________________________
+        |  distancia_cm  |       timestamp     |
+        |      15.40     | 25/04/2018 15:32:45 |
+        ---------------------------------------
+    */
+
+    _snprintf(instrucao_sql, TAM(instrucao_sql), "CREATE TABLE IF NOT EXISTS %s (%s DOUBLE, %s CHAR(20));", 
+    NOME_TABELA, 
+    COLUNA_DIST, 
+    COLUNA_TSTAMP);
+    
+#ifdef DEBUG
+    fprintf(stderr, "[SQL] %s\n", instrucao_sql);
+#endif
+
+    if(sqlite3_exec(banco, instrucao_sql, NULL, NULL, &errMsg) != SQLITE_OK)
+    {
+        fprintf(stderr, "Falha ao executar instrucao SQL: %s\n", errMsg);
+
+        sqlite3_close_v2(banco);
+        return;
+    }
+
+    // Ligar o servidor
     if(escutar_conexoes(p) != SOCKET_ERROR)
     {
         fprintf(stderr, "Aguardando conexões ...\n");
-        host = aceitar_conexao(p);
-        if(host != NULL)
-        {
-            fprintf(stderr, "Arduino conectado -> IP: %s -> porta %hu\n", host->endereco_ip, host->porta);
 
-            // Libera a memória alocada para armazenar os dados do arduino conectado
-            if(host)
-                free(host);
-        } else {
-            fprintf(stderr, "Falha ao receber conexao: %d\n", WSAGetLastError());
+        interrompido = false;
+        interromper = false;
+        
+        while(!interromper)
+        {
+            host = aceitar_conexao(p);
+            if(host != NULL)
+            {
+                fprintf(stderr, "Arduino conectado -> IP: %s -> porta %hu\n", host->endereco_ip, host->porta);
+
+                // Com o modo keepalive já ativado, só nos resta receber e processar os dados
+
+                int bytesRec, totalBytes = 0;
+
+                do {
+                    bytesRec = ler(host->sock, buffer, sizeof(buffer));
+                    if(bytesRec < 0)
+                    {
+                        fprintf(stderr, "Falha ao receber dados: %d\n", WSAGetLastError());
+                        break;
+                    }
+
+                    totalBytes += bytesRec;
+                } while(bytesRec > 0);
+
+                if(totalBytes > 0)
+                {
+                    // Decodifica os dados recebidos e formata-os para que sejam inseridos no banco de dados
+                    double distancia = strtod(buffer, NULL);
+                    char *timestamp = compilar_timestamp();
+
+                    if(timestamp == NULL)
+                    {
+                        fprintf(stderr, "Erro fatal: falha ao obter timestamp. O programa nao podera continuar\n");
+                        Sleep(5000);
+                        exit(-1);
+                    }
+
+                    // Insere a distância lida no banco de dados
+                    snprintf(instrucao_sql, TAM(instrucao_sql), "INSERT INTO %s (%s,%s) VALUES ('%.4lf','%s');",
+                    NOME_TABELA, 
+                    COLUNA_DIST, 
+                    COLUNA_TSTAMP, 
+                    distancia, 
+                    timestamp);
+
+                    // É necessário liberar a memória alocada
+                    free(timestamp);
+#ifdef DEBUG 
+                    fprintf(stderr, "[SQL] %s\n", instrucao_sql);
+#endif
+                    if(sqlite3_exec(banco, instrucao_sql, NULL, NULL, &errMsg) != SQLITE_OK) {
+                        fprintf(stderr, "Falha ao passar informacoes para o banco de dados: %s\n", errMsg);
+                    }
+                }
+
+                fprintf(stderr, "Conexao terminada\n");
+                
+                // Libera a memória alocada para armazenar os dados do arduino conectado
+                if(host)
+                    free(host);
+            } else {
+                fprintf(stderr, "Falha ao receber conexao: %d\n", WSAGetLastError());
+            }
         }
+
+        interrompido = true;
+        interromper = false;
+
+#ifdef DEBUG
+        fprintf(stderr, "Thread interrompida\n");
+#endif
+
+        // fecha o banco de dados
+        sqlite3_close_v2(banco);
     } else {
         fprintf(stderr, "Falha ao aguardar conexões: %d\n", WSAGetLastError());
     }
+}
+
+// Cria um timestamp e retorna em formato de string. O formato adotado é: dd/mm/yyyy hh:mm:ss
+char *compilar_timestamp()
+{
+    SYSTEMTIME *timestamp = NULL;
+    char *buffer_tempo = NULL;
+    size_t tamanho_timestamp = 22;
+
+    // Aloca memória para a string e para a estrutura que armazena o timestamp
+    timestamp = (SYSTEMTIME*)malloc(sizeof(SYSTEMTIME));
+    if(!timestamp)
+        return NULL;
+        
+    buffer_tempo = (char*)malloc(tamanho_timestamp);
+    if(!buffer_tempo)
+        return NULL;
+
+    // Obtém a hora local
+    GetLocalTime(timestamp);
+
+    //Formata o timestamp
+    snprintf(buffer_tempo, tamanho_timestamp, "%02d/%02d/%02d %02d:%02d:%02d", 
+    timestamp->wDay,
+    timestamp->wMonth,
+    timestamp->wYear,
+    timestamp->wHour,
+    timestamp->wMinute,
+    timestamp->wSecond);
+
+    free(timestamp);
+
+    // ALERTA: esse ponteiro precisa ser liberado após ser utilizado
+    return buffer_tempo;
+}
+
+// Solicita a interrupcao do servidor
+void solicitar_interrupcao()
+{
+
+    // Se o servidor estiver aguardando conexões, não será possível interromper a thread de imediato
+    if(!interrompido)
+        interromper = true;
 }

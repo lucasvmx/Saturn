@@ -30,16 +30,55 @@ void setup()
 {
 	uint8_t status_conexao;
 	String msg;
+	String IP;		// endereço de IP do servidor
+	int quantidade_pontos = 0;
 
 	// Inicializa a comunicação serial
 	Serial.begin(115200);
-	
+
+	//Recebe o endereço de IP
+	for(;;)
+	{
+		Serial.println( "Aguardando inserção do endereço de IP ...");
+
+		while(!Serial.available());
+
+		IP = Serial.readString();
+
+		Serial.println( "IP inserido: " + IP);
+
+		// Tenta validar o IP da melhor forma possível
+		if(IP.length() < 7 || IP.length() > 15)
+		{
+			Serial.println( "Endereço de IP com tamanho incorreto: " + String(IP.length()));
+			continue;
+		}
+		
+		for(int i = 0; i < IP.length(); i++)
+		{
+			if(IP.charAt(i) == '.')
+				quantidade_pontos++;
+		}
+
+		if(quantidade_pontos != 3)
+		{
+			Serial.println( "Quantidade de pontos inválida: " + String(quantidade_pontos));
+			quantidade_pontos = 0;
+			continue;
+		}
+
+		// Se chegarmos até aqui, então o IP está em um formato aceitável
+		break;
+	}
+
 	pinMode(LED_BUILTIN, OUTPUT);
 
 	// Inicializa as classes necessárias
 	Serial.println( "Inicializando ...");
+	Serial.println( "IP do servidor: " + IP);
+
 	ultrassom = new sonar(echo, trigger);
-	net = new rede();
+	net = new rede(IP.c_str());
 	
 	// Configura os pinos utilizados pelo sonar
 	Serial.println( "Configurando pinos ...");

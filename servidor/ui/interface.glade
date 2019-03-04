@@ -5,9 +5,8 @@
   <object class="GtkTextBuffer" id="buffer_texto"/>
   <object class="GtkApplicationWindow" id="janela_principal">
     <property name="can_focus">False</property>
-    <property name="title" translatable="yes">Servidor</property>
-    <property name="resizable">False</property>
-    <property name="icon">iconfinder_37_939834.ico</property>
+    <property name="title" translatable="yes">Saturn - servidor</property>
+    <property name="window_position">center</property>
     <child type="titlebar">
       <placeholder/>
     </child>
@@ -17,17 +16,48 @@
         <property name="can_focus">False</property>
         <property name="orientation">vertical</property>
         <child>
-          <object class="GtkTextView" id="janela_log">
+          <object class="GtkFrame" id="frame">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="hscroll_policy">natural</property>
-            <property name="vscroll_policy">natural</property>
-            <property name="editable">False</property>
-            <property name="buffer">buffer_texto</property>
+            <property name="can_focus">False</property>
+            <property name="margin_left">8</property>
+            <property name="margin_right">8</property>
+            <property name="margin_top">2</property>
+            <property name="margin_bottom">2</property>
+            <property name="label_xalign">0.5</property>
+            <property name="shadow_type">in</property>
+            <child>
+              <object class="GtkAlignment">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="left_padding">12</property>
+                <child>
+                  <object class="GtkTextView" id="janela_log">
+                    <property name="visible">True</property>
+                    <property name="app_paintable">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="hscroll_policy">natural</property>
+                    <property name="vscroll_policy">natural</property>
+                    <property name="editable">False</property>
+                    <property name="buffer">buffer_texto</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child type="label">
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="label" translatable="yes">Log</property>
+                <attributes>
+                  <attribute name="foreground" value="#34346565a4a4"/>
+                </attributes>
+              </object>
+            </child>
           </object>
           <packing>
             <property name="expand">True</property>
             <property name="fill">True</property>
+            <property name="padding">2</property>
             <property name="position">0</property>
           </packing>
         </child>
@@ -42,6 +72,9 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
+                <property name="margin_left">8</property>
+                <property name="margin_right">8</property>
+                <property name="margin_bottom">3</property>
                 <property name="hexpand">True</property>
                 <property name="resize_mode">immediate</property>
                 <signal name="clicked" handler="on_botao_iniciar_server_clicked" swapped="no"/>
@@ -61,8 +94,22 @@
                 <property name="single_line_mode">True</property>
                 <attributes>
                   <attribute name="foreground" value="#cccc00000000"/>
-                  <attribute name="size" value="100"/>
                 </attributes>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="botao_consultar_registros_salvos">
+                <property name="label" translatable="yes">Consultar registros salvos</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="margin_left">8</property>
+                <property name="margin_right">8</property>
+                <property name="margin_top">3</property>
               </object>
               <packing>
                 <property name="left_attach">0</property>
@@ -74,6 +121,146 @@
             <property name="expand">False</property>
             <property name="fill">True</property>
             <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+  <object class="GtkTextBuffer" id="buffer_texto_registro"/>
+  <object class="GtkWindow" id="janela_registros">
+    <property name="can_focus">False</property>
+    <property name="window_position">center-on-parent</property>
+    <property name="type_hint">dialog</property>
+    <child>
+      <placeholder/>
+    </child>
+    <child>
+      <object class="GtkGrid">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <child>
+          <object class="GtkButtonBox">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="layout_style">start</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="margin_left">5</property>
+                <property name="margin_right">5</property>
+                <property name="label" translatable="yes">Ordenar por:</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+                <property name="non_homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton" id="radio_button_data_hora">
+                <property name="label" translatable="yes">Data e hora</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="margin_right">5</property>
+                <property name="draw_indicator">True</property>
+                <property name="group">radio_button_distancia</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+                <property name="non_homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkRadioButton" id="radio_button_distancia">
+                <property name="label" translatable="yes">Distância</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="margin_right">5</property>
+                <property name="draw_indicator">True</property>
+                <property name="group">radio_button_data_hora</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">2</property>
+                <property name="non_homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="botao_realizar_consulta">
+                <property name="label" translatable="yes">Realizar consulta</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="margin_left">5</property>
+                <property name="margin_right">6</property>
+                <property name="margin_top">5</property>
+                <property name="margin_bottom">5</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">3</property>
+                <property name="secondary">True</property>
+                <property name="non_homogeneous">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="botao_escolher">
+                <property name="label">Abrir</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="margin_right">6</property>
+                <property name="margin_top">5</property>
+                <property name="margin_bottom">5</property>
+                <property name="always_show_image">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">4</property>
+                <property name="non_homogeneous">True</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="left_attach">0</property>
+            <property name="top_attach">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="shadow_type">etched-in</property>
+            <property name="min_content_height">220</property>
+            <property name="propagate_natural_width">True</property>
+            <property name="propagate_natural_height">True</property>
+            <child>
+              <object class="GtkTextView" id="texto_registro">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="margin_left">5</property>
+                <property name="margin_right">6</property>
+                <property name="margin_top">5</property>
+                <property name="margin_bottom">5</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="editable">False</property>
+                <property name="buffer">buffer_texto_registro</property>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="left_attach">0</property>
+            <property name="top_attach">0</property>
           </packing>
         </child>
       </object>

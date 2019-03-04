@@ -9,8 +9,8 @@
 #ifndef SENSOR_H
 #define SENSOR_H
 
-#define METROS	0
-#define CENTIMETROS	1
+static const short METROS = 0;
+static const short CENTIMETROS = 1;
 
 class sonar
 {

@@ -14,6 +14,11 @@ rede::rede()
 	
 }
 
+rede::rede(const char *ip)
+{
+	this->endereco_ip = ip;
+}
+
 rede::~rede()
 {
 	
@@ -64,21 +69,29 @@ bool rede::conectarRedeWifi(const char *nome_rede, const char *senha, uint8_t *s
 bool rede::enviarLeituraSonar(double valor)
 {
 	WiFiClient arduino;
+	int iConnect;
 	
 	// Tenta realizar a conexão com o host remoto, caso a conexão não tenha sido estabelecida anteriormente
 	if(!arduino.connected()) 
 	{
-		if(!arduino.connect("192.168.15.4", porta))
+		// IMPORTANTE: o firewall poderá bloquear conexões pela porta 3000.
+		iConnect = arduino.connect(endereco_ip, porta);
+
+		if(!iConnect)
+		{
+			Serial.print( ".");
 			return false;
+		}
 
 		// Ativa o flag para manter a conexão ativa
 		arduino.keepAlive();
 	}
 	
 	// Envia a distância lida pelo sonar com quatro casas decimais
-	arduino.println(String(valor, 4));
-	
-	Serial.println( "Dados do sonar enviados com sucesso");
+	size_t bytesEnviados = arduino.printf( "%.2lf", valor);
+
+	if(bytesEnviados <= 0)
+		Serial.println( "Erro");
 
 	return true;
 }

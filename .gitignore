@@ -2,4 +2,6 @@ commit.txt
 *.pro.user
 *.glade~
 .vscode
+.vs
 servidor/bin
+instalador
