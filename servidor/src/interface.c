@@ -326,11 +326,11 @@ static void on_botao_escolher_clicked(GtkWidget *widget, gpointer data)
 
 	if(caminho_banco_dados != NULL)
 	{
-		GtkWidget *j = gtk_message_dialog_new(0, GTK_DIALOG_DESTROY_WITH_PARENT,
+		GtkWidget *j = gtk_message_dialog_new(0, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_USE_HEADER_BAR,
 		GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, "O arquivo a seguir já foi selecionado:\n\n'%s'\n\nDeseja escolher outro?", caminho_banco_dados);
 
 		gint resposta_dialog = gtk_dialog_run(GTK_DIALOG(j));
-		gtk_widget_destroy(j);
+		gtk_widget_destroy(GTK_WIDGET(j));
 
 		if(resposta_dialog == GTK_RESPONSE_NO)
 			return;
@@ -341,7 +341,7 @@ static void on_botao_escolher_clicked(GtkWidget *widget, gpointer data)
 #endif
 
 	// Cria um diálogo para selecionar arquivo
-	chooser = gtk_file_chooser_dialog_new("Escolha o arquivo de registro", 0, acao, "Cancelar", GTK_RESPONSE_CANCEL,
+	chooser = gtk_file_chooser_dialog_new("Escolha o arquivo de registro", widget, acao, "Cancelar", GTK_RESPONSE_CANCEL,
 				"Escolher", GTK_RESPONSE_ACCEPT, NULL);
 
 	gtk_file_filter_add_pattern(filtro, "*.sdb");
