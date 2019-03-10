@@ -31,7 +31,7 @@ extern int vincular_servidor(SOCKET sock, const char *IP, int porta);
 extern int escutar_conexoes(SOCKET sock);
 extern struct host_remoto *aceitar_conexao(SOCKET sock);
 extern int ler(SOCKET sock, void *buffer, int tam_buffer);
-extern void executar();
+extern void *executar();
 extern void solicitar_interrupcao();
 extern char *compilar_timestamp();
 

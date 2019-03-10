@@ -10,14 +10,10 @@
 #include <gtk/gtk.h>
 
 GObject *desenhar_janela_principal(int argc, char **argv);
-static void on_botao_iniciar_server_clicked(GtkWidget *widget, gpointer data);
-static void on_botao_consultar_registros_salvos_clicked(GtkWidget *widget, gpointer data);
 void ui_print(GtkTextBuffer *buffer, const gchar *texto, ...);
+void limpar_texto(GtkTextBuffer *buffer);
 
 // Janela de registros
 GtkWindow *desenhar_janela_registros();
-static void on_botao_escolher_clicked(GtkWidget *widget, gpointer data);
-static void on_botao_consultar_clicked(GtkWidget *widget, gpointer data);
-static void on_janela_registros_destroyed();
 
 #endif

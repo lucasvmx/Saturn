@@ -55,12 +55,12 @@ double sonar::obterDistancia(short UNIDADE_DE_MEDIDA)
 	duracao_us = pulseIn(pinoEcho, HIGH);
 	
 	// Converte a duração para milissegundos
-	duracao_ms = (double)duracao_us / (pow(10,3));
+	duracao_ms = (double)duracao_us / (pow(10.0,3.0));
 	
 	// A partir da duração, podemos saber a distância em que o objeto se encontra
-	distancia_m = this->velocidade_som * (duracao_ms / pow(10,3));
+	distancia_m = this->velocidade_som * (duracao_ms / pow(10.0,3.0));
 	distancia_m /= 2.0;
-	distancia_cm = distancia_m * pow(10,2);
-	
+	distancia_cm = distancia_m * pow(10.0,2.0);
+		
 	return (UNIDADE_DE_MEDIDA == METROS) ? distancia_m:distancia_cm;
 }

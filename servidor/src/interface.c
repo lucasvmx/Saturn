@@ -8,13 +8,32 @@
 #include "interface.h"
 #include "servidor.h"
 #include "comum.h"
+#include "xlsxwriter.h"
 #include <stdio.h>
 #include <windows.h>
 #include <pthread.h>
 #include <iphlpapi.h>
+#include <io.h>
 
 #define LARGURA		400
 #define ALTURA		300
+
+static const char *arquivo_interface = "interface.xml";
+
+// Funções privadas
+static void on_botao_iniciar_server_clicked();
+static void on_botao_consultar_registros_salvos_clicked();
+static void on_botao_escolher_clicked();
+static void on_botao_consultar_clicked();
+static void on_janela_registros_destroyed();
+
+// Função executada durante a realização da consulta no banco de dados
+static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char **nomes_colunas);
+
+// Planilha do excel
+lxw_workbook *planilha = NULL;
+lxw_worksheet *folha_planilha = NULL;
+static const char *extensao_planilha = "xlsx";
 
 // Utilizados pela thread do servidor
 bool interromper;
@@ -46,12 +65,26 @@ static int num_registros = 0;				// armazena a quantidade de registros localizad
 GObject *desenhar_janela_principal(int argc, char **argv)
 {
 	GtkBuilder *builder = NULL;
-
+	
 	// Inicializa a biblioteca GTK
 	gtk_init(&argc, &argv);
 	
+	// Verifica se a interface gráfica está em disco
+	if(access(arquivo_interface, 00) == -1)
+	{
+		GtkWidget *widgetMensagem = NULL;
+
+		widgetMensagem = gtk_message_dialog_new(0, GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
+		"Erro: não será possível carregar a interface gráfica, pois o arquivo %s não foi localizado\n", arquivo_interface);
+		gtk_window_set_position(GTK_WINDOW(widgetMensagem), GTK_WIN_POS_CENTER_ALWAYS);
+		gtk_dialog_run(GTK_DIALOG(widgetMensagem));
+		gtk_widget_destroy(GTK_WIDGET(widgetMensagem));
+		
+		exit(-1);
+	}
+
 	// Lê as definições da interface a partir de um arquivo XML
-	builder = gtk_builder_new_from_file("interface.glade");
+	builder = gtk_builder_new_from_file(arquivo_interface);
 	if(builder == NULL)
 	{
 		g_print( "Erro ao carregar janela principal\n");
@@ -83,32 +116,31 @@ GObject *desenhar_janela_principal(int argc, char **argv)
 	buffer_texto = (GtkTextBuffer*)gtk_builder_get_object(builder, "buffer_texto");
 
 	// Exibe a interface e a redimensiona
-	gtk_widget_show(janela);
-	gtk_widget_set_size_request(janela, LARGURA, ALTURA);
+	gtk_widget_show(GTK_WIDGET(janela));
+	gtk_widget_set_size_request(GTK_WIDGET(janela), LARGURA, ALTURA);
 	
 	// Muda o título da janela
-	gtk_window_set_title(janela, "Saturn - servidor");
+	gtk_window_set_title(GTK_WINDOW(janela), "Saturn - servidor");
 	
 	// Inicializa as variáveis da thread
 	interrompido = true;
 	interromper = false;
 	
-	return janela;
+	return G_OBJECT(janela);
 }
 
 /* 
 	Essa função é executada assim que o usuário clica o botão "iniciar servidor"
 */
-static void on_botao_iniciar_server_clicked(GtkWidget *widget, gpointer data)
+static void on_botao_iniciar_server_clicked()
 {
-	SOCKET server_socket;	// socket de rede do servidor
-	struct host_remoto *host = NULL;		// ponteiro para a estrutura rhost
-	pthread_t pThread;		// Utilizado como instrumento para manusear a thread
-	WSADATA wsa_data;		// Estrutura utilizada pela função WSaStartup
-	GtkWidget *msg_box = NULL;
+	SOCKET server_socket;			// socket de rede do servidor
+	static pthread_t pThread;		// Utilizado como instrumento para manusear a thread
+	WSADATA wsa_data;				// Estrutura utilizada pela função WSaStartup
+	GtkWidget *msg_box = NULL;		// Caixa de mensagem
 
 #ifdef DEBUG
-	g_print( "Interrompido: %s\nInterromper: %s\n", (interrompido) ? "true":"false", (interromper) ? "true":"false");
+	g_print( "(%s:%d) Interrompido: %s\nInterromper: %s\n", __FILE__, __LINE__, (interrompido) ? "true":"false", (interromper) ? "true":"false");
 #endif
 
 	if(!interrompido)
@@ -116,25 +148,45 @@ static void on_botao_iniciar_server_clicked(GtkWidget *widget, gpointer data)
 		solicitar_interrupcao();
 		Sleep(1000);
 
-		// Cancela a thread de forma grosseira, caso o solicitar_interrupcao() não tenha efeito rápido
-		pthread_cancel(pThread);
+		limpar_texto(buffer_texto);
 
-		ui_print(buffer_texto, "Servidor interrompido\n" );
-		gtk_button_set_label(botao_iniciar_servidor, "Iniciar servidor" );
+		if(interrompido)
+		{
+			ui_print(buffer_texto, "Servidor interrompido\n" );
+			gtk_button_set_label(botao_iniciar_servidor, "Iniciar servidor" );
+		} else 
+		{
+			// Cancela a thread de forma grosseira, caso o solicitar_interrupcao() não tenha efeito rápido
+			int iCancel;
+
+			if((iCancel = pthread_cancel(pThread)) != 0)
+			{
+#ifdef DEBUG
+				g_print( "(%s:%d) falha ao enviar sinal de interrupção para a thread: %d\n", __FILE__, __LINE__, iCancel);
+#endif
+			}
+
+			if(!interrompido)
+			{
+				ui_print(buffer_texto, "O servidor não foi interrompido. Recomenda-se reiniciar o aplicativo, caso você esteja com pressa\n");
+				return;
+			}
+		}
 
 		// WARNING: essa variável é global e requer extrema cautela na sua utilização
 		if(banco != NULL)
 			sqlite3_close_v2(banco);
-
+		
 		return;
 	}
 
 	// Inicializa a biblioteca WinSock
 	if(WSAStartup(MAKEWORD(2,2), &wsa_data) != 0)
 	{
-		msg_box = gtk_message_dialog_new(widget, GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Erro ao inicializar winsock: %d", WSAGetLastError());
-		gtk_dialog_run(G_OBJECT(msg_box));
-		gtk_widget_destroy(msg_box);
+		msg_box = gtk_message_dialog_new(0, GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO, GTK_BUTTONS_OK, "Erro ao inicializar winsock: %d", WSAGetLastError());
+		gtk_window_set_position(GTK_WINDOW(msg_box), GTK_WIN_POS_CENTER_ON_PARENT);
+		gtk_dialog_run(GTK_DIALOG(msg_box));
+		gtk_widget_destroy(GTK_WIDGET(msg_box));
 
 		return;
 	}
@@ -151,8 +203,9 @@ static void on_botao_iniciar_server_clicked(GtkWidget *widget, gpointer data)
 		adapt = (IP_ADAPTER_INFO*)malloc(sizeof(IP_ADAPTER_INFO));
 		if(adapt == NULL)
 		{
-			g_print( "Falha ao alocar memória: %d\n", GetLastError());
-			return;
+			ui_print(buffer_texto, "Falha ao alocar memória: %lu\n", GetLastError());
+			Sleep(2000);
+			exit(ERROR_NOT_ENOUGH_MEMORY);
 		}
 
 		// Obtém informações sobre os adaptadores de rede da máquina
@@ -169,14 +222,14 @@ static void on_botao_iniciar_server_clicked(GtkWidget *widget, gpointer data)
 				adapt = (IP_ADAPTER_INFO*)malloc(tamanho);
 				if(adapt == NULL)
 				{
-					g_print( "Memória insuficiente\n");
+					ui_print(buffer_texto, "Memória insuficiente\n");
 					return;
 				}
 
 				result = GetAdaptersInfo(adapt, &tamanho);
 				if(result != NO_ERROR)
 				{
-					g_print( "Falhou: %d\n", result);
+					g_print( "Falhou: %lu\n", result);
 					return;
 				}
 			} else 
@@ -231,12 +284,17 @@ static void on_botao_iniciar_server_clicked(GtkWidget *widget, gpointer data)
 	}
 }
 
-static void on_botao_consultar_registros_salvos_clicked(GtkWidget *widget, gpointer data)
+static void on_botao_consultar_registros_salvos_clicked()
 {
 	if(janela_registros == NULL)
 	{
 		desenhar_janela_registros();
 		gtk_widget_show(GTK_WIDGET(janela_registros));
+		
+		// Exibe um texto de ajuda
+		ui_print(buffer_texto_registro, "Esta é a aba para consultar os registros do sonar\n\n");
+		ui_print(buffer_texto_registro, "Clique em 'Abrir' para selecionar o banco de dados que você deseja ler os registros\n");
+		ui_print(buffer_texto_registro, "Clique em 'Realizar consulta' para exibir os registros contidos no banco de dados selecionado\n");
 	}
 	else if(!gtk_widget_is_visible(GTK_WIDGET(janela_registros)))
 	{
@@ -252,12 +310,13 @@ static void on_botao_consultar_registros_salvos_clicked(GtkWidget *widget, gpoin
 	{
 		GtkWidget *dlg = gtk_message_dialog_new(0, GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK, 
 		"A janela de registros já encontra-se aberta e visível");
-		gtk_dialog_run(dlg);
-		gtk_widget_destroy(dlg);
+		gtk_window_set_position(GTK_WINDOW(dlg), GTK_WIN_POS_CENTER);
+		gtk_dialog_run(GTK_DIALOG(dlg));
+		gtk_widget_destroy(GTK_WIDGET(dlg));
 	} 
 }
 
-// Imprime um texto no TextBuffer especificado
+// Imprime um texto formatado no 'TextBuffer' especificado
 void ui_print(GtkTextBuffer *buffer, const gchar *texto, ...)
 {
 	va_list lista;
@@ -304,25 +363,23 @@ GtkWindow *desenhar_janela_registros()
 	g_signal_connect(janela_registros, "destroy", on_janela_registros_destroyed, NULL);
 
 	// Ajustar o tamanho da janela
-	gtk_widget_set_size_request(janela_registros, LARGURA + 50, ALTURA);
+	gtk_widget_set_size_request(GTK_WIDGET(janela_registros), LARGURA + 100, ALTURA);
 
 	// Editar o título
-	gtk_window_set_title(janela_registros, "Consulta de registros");
+	gtk_window_set_title(GTK_WINDOW(janela_registros), "Consulta de registros");
 
 	// Edita o ícone
-	gtk_window_set_icon_from_file(janela_registros, "iconfinder_search-database_49618.ico", NULL);
+	gtk_window_set_icon_from_file(GTK_WINDOW(janela_registros), "iconfinder_search-database_49618.ico", NULL);
 	
 	return janela_registros;
 }
 
 // Executada quando o usuário clica no botão de escolher o registro salvo em disco
-static void on_botao_escolher_clicked(GtkWidget *widget, gpointer data)
+static void on_botao_escolher_clicked()
 {
 	GtkFileChooser *chooser = NULL;
 	GtkFileChooserAction acao = GTK_FILE_CHOOSER_ACTION_OPEN;
 	GtkFileFilter *filtro = gtk_file_filter_new();
-
-	(void)data;
 
 	if(caminho_banco_dados != NULL)
 	{
@@ -341,7 +398,7 @@ static void on_botao_escolher_clicked(GtkWidget *widget, gpointer data)
 #endif
 
 	// Cria um diálogo para selecionar arquivo
-	chooser = gtk_file_chooser_dialog_new("Escolha o arquivo de registro", widget, acao, "Cancelar", GTK_RESPONSE_CANCEL,
+	chooser = (GtkFileChooser*)gtk_file_chooser_dialog_new("Escolha o arquivo de registro", 0, acao, "Cancelar", GTK_RESPONSE_CANCEL,
 				"Escolher", GTK_RESPONSE_ACCEPT, NULL);
 
 	gtk_file_filter_add_pattern(filtro, "*.sdb");
@@ -363,7 +420,7 @@ static void on_botao_escolher_clicked(GtkWidget *widget, gpointer data)
 	gtk_widget_destroy(GTK_WIDGET(chooser));
 }
 
-// Callback utilizado pela função sqlite3_exec().
+// Função utilizada por sqlite3_exec(). Ela é executada para cada linha existente no banco de dados
 static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char **nomes_colunas)
 {
 	int i = 0;
@@ -375,9 +432,23 @@ static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char 
 	(void)nomes_colunas;
 #endif
 
+	// Provavelmente ao abrir a planilha no excel 2016, o usuário receberá uma mensagem perguntando se ele deseja recuperar a planilha
+	if(num_registros == 0)
+	{
+		// Escreve a primeira parte da planilha
+		worksheet_write_string(folha_planilha, 0, 0, "Distância (cm)", NULL);
+		worksheet_write_string(folha_planilha, 0, 1, "Data e Hora", NULL);
+	}
+
 	// exibe a distancia e a data
 	for(i = 0; i < numero_colunas; i += 2)
-		ui_print(buffer_texto_registro, "%s - %s\n", dados_colunas[i], dados_colunas[i + 1]);
+	{
+		worksheet_write_string(folha_planilha, num_registros+1, 0, dados_colunas[i], NULL);
+		worksheet_write_string(folha_planilha, num_registros+1, 1, dados_colunas[i+1], NULL);
+		ui_print(buffer_texto_registro, "Distância: %s cm - Data e Hora: %s\n", dados_colunas[i], dados_colunas[i+1]);
+	}		
+
+	//ui_print(buffer_texto_registro, "%s - %s\n", dados_colunas[i], dados_colunas[i + 1]);
 
 	num_registros++;
 
@@ -385,20 +456,18 @@ static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char 
 }
 
 // Executada quando o usuário clica o botão de realizar consulta
-static void on_botao_consultar_clicked(GtkWidget *widget, gpointer data)
+static void on_botao_consultar_clicked()
 {
 	bool ordenar_por_distancia = false;
 	char instrucao_sql[256];
 	char *msgErro = 0;
 
-	(void)data;
-
-	gtk_text_buffer_set_text(buffer_texto_registro, "", 0);
+	limpar_texto(buffer_texto_registro);
 
 	// O servidor precisa estar parado para consultar os registros
 	if(!interrompido)
 	{
-		GtkWidget *m = gtk_message_dialog_new(GTK_WINDOW(widget), GTK_DIALOG_DESTROY_WITH_PARENT,
+		GtkWidget *m = gtk_message_dialog_new(0, GTK_DIALOG_DESTROY_WITH_PARENT,
 		GTK_MESSAGE_ERROR, GTK_BUTTONS_OK, "O servidor precisa estar parado");
 		gtk_dialog_run(GTK_DIALOG(m))	;
 		gtk_widget_destroy(m);
@@ -408,7 +477,7 @@ static void on_botao_consultar_clicked(GtkWidget *widget, gpointer data)
 
 	if(caminho_banco_dados == NULL)
 	{
-		gtk_text_buffer_set_text(buffer_texto_registro, "", 0);
+		limpar_texto(buffer_texto_registro);
 		ui_print(buffer_texto_registro, "Nenhum banco de dados foi selecionado\n");
 
 		return;
@@ -436,12 +505,45 @@ static void on_botao_consultar_clicked(GtkWidget *widget, gpointer data)
 	}
 
 	// Constrói a instrução SQL
-	_snprintf(instrucao_sql, TAM(instrucao_sql), "SELECT * FROM %s\nORDER BY %s;",
+	_snprintf(instrucao_sql, TAM(instrucao_sql), "SELECT * FROM %s ORDER BY %s ASC;",
 	NOME_TABELA, (ordenar_por_distancia) ? COLUNA_DIST:COLUNA_TSTAMP);
 
 #ifdef DEBUG
 	g_print( "[SQL] %s\n", instrucao_sql);
 #endif
+
+	// Cria o nome do arquivo
+	char nome_planilha[32];
+	SYSTEMTIME *tempo = (SYSTEMTIME*)malloc(sizeof(SYSTEMTIME));
+
+	if(tempo == NULL)
+	{
+		ui_print(buffer_texto_registro, "Falha ao alocar memória\n");
+		Sleep(2000);
+		exit(ERROR_NOT_ENOUGH_MEMORY);
+	}
+
+	GetLocalTime(tempo);
+	_snprintf(nome_planilha, TAM(nome_planilha), "Registro_%02d%02d%02d_%02d%02d%02d.%s", tempo->wDay, tempo->wMonth, tempo->wYear,
+	tempo->wHour, tempo->wMinute, tempo->wSecond, extensao_planilha);
+
+	// Libera a memória alocada
+	free(tempo);
+
+	// Abre a planilha do excel
+	planilha = workbook_new(nome_planilha);
+	if(!planilha)
+	{
+		ui_print(buffer_texto_registro, "Falha ao abrir planilha\n");
+
+		// fecha o banco de dados
+		sqlite3_close_v2(banco);
+
+		return;
+	}
+
+	folha_planilha = workbook_add_worksheet(planilha, "Registros do sonar");
+
 	// Executa a instrução SQL
 	int iExec = sqlite3_exec(banco, instrucao_sql, sql_callback, NULL, &msgErro);
 
@@ -451,16 +553,45 @@ static void on_botao_consultar_clicked(GtkWidget *widget, gpointer data)
 		g_print( "Falha ao executar SQL: %s\n", msgErro);
 #endif
 		ui_print(buffer_texto_registro, "Erro ao realizar consulta no banco de dados\n");
+		
+		// fecha a planilha
+		workbook_close(planilha);
+
+		// fecha o banco de dados
+		sqlite3_close_v2(banco);
+
 		return;
 	}
 
 	// Fecha o banco de dados
 	sqlite3_close_v2(banco);
 
+	// fecha a planilha
+	workbook_close(planilha);
+
 	if(num_registros == 0)
 	{
 		ui_print(buffer_texto_registro, "Nenhum registro foi encontrado no banco de dados\n");
+
+		// A planilha criada pode ser deletada
+		DeleteFileA(nome_planilha);
 	}
+
+	char pasta_atual[MAX_PATH];
+
+	// Obtém a pasta em que o programa está atualmente localizado
+	if(!GetCurrentDirectoryA(TAM(pasta_atual), pasta_atual))
+		ui_print(buffer_texto_registro, "ALERTA: não foi possível obter a pasta atual\n");
+	else
+		ui_print(buffer_texto_registro, "\nRegistro salvo em: %s\\%s\n", pasta_atual, nome_planilha);
+
+	// TODO: dar ao usuário a opção de escolher se deseja ou não salvar os registros em uma planilha
+	HINSTANCE is = ShellExecuteA(0, "open", nome_planilha, 0, 0, 0);
+	
+	if(is < (HINSTANCE)32)
+		ui_print(buffer_texto_registro, "Erro ao abrir planilha\n");
+	else
+		ui_print(buffer_texto_registro, "Planilha aberta com sucesso\n");
 
 	num_registros = 0;
 }
@@ -471,4 +602,10 @@ static void on_janela_registros_destroyed()
 #ifdef DEBUG
 	g_print( "Janela de registros destruida\n");
 #endif
+}
+
+// Limpa o texto do buffer em questão
+void limpar_texto(GtkTextBuffer *buffer)
+{
+	gtk_text_buffer_set_text(buffer, "", 0);
 }

@@ -32,11 +32,12 @@ void setup()
 	String msg;
 	String IP;		// endereço de IP do servidor
 	int quantidade_pontos = 0;
+	bool invalido;
 
 	// Inicializa a comunicação serial
 	Serial.begin(115200);
 
-	//Recebe o endereço de IP
+	//Recebe o endereço de IP e realiza a sua validação (parcial)
 	for(;;)
 	{
 		Serial.println( "Aguardando inserção do endereço de IP ...");
@@ -45,27 +46,14 @@ void setup()
 
 		IP = Serial.readString();
 
+		IP.setCharAt(IP.length() - 1, '\0');
+
 		Serial.println( "IP inserido: " + IP);
 
 		// Tenta validar o IP da melhor forma possível
-		if(IP.length() < 7 || IP.length() > 15)
-		{
-			Serial.println( "Endereço de IP com tamanho incorreto: " + String(IP.length()));
-			continue;
-		}
-		
-		for(int i = 0; i < IP.length(); i++)
-		{
-			if(IP.charAt(i) == '.')
-				quantidade_pontos++;
-		}
 
-		if(quantidade_pontos != 3)
-		{
-			Serial.println( "Quantidade de pontos inválida: " + String(quantidade_pontos));
-			quantidade_pontos = 0;
+		if(IPAddress::isValid(IP) == false)
 			continue;
-		}
 
 		// Se chegarmos até aqui, então o IP está em um formato aceitável
 		break;

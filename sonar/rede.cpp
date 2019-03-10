@@ -16,7 +16,7 @@ rede::rede()
 
 rede::rede(const char *ip)
 {
-	this->endereco_ip = ip;
+	strcpy(endereco_ip, ip);
 }
 
 rede::~rede()
@@ -79,7 +79,6 @@ bool rede::enviarLeituraSonar(double valor)
 
 		if(!iConnect)
 		{
-			Serial.print( ".");
 			return false;
 		}
 

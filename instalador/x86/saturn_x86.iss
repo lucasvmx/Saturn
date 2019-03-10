@@ -5,7 +5,7 @@
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher "Lucas Vieira"
 #define MyAppURL "https://github.com/lucas-engen/Saturn"
-#define MyAppExeName "server.exe"
+#define MyAppExeName "server32.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
@@ -22,9 +22,9 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={pf}\{#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=F:\LUCAS\Projetos\Saturn\instalador\LICENSE.txt
-OutputDir=F:\LUCAS\Projetos\Saturn\instalador
-OutputBaseFilename=Saturn-0.1.0-x64
-SetupIconFile=F:\LUCAS\Projetos\Saturn\servidor\ui\iconfinder_Saturn_89145.ico
+OutputDir=F:\LUCAS\Projetos\Saturn\instalador\x86
+OutputBaseFilename=Saturn-0.1.0-x86
+SetupIconFile=F:\LUCAS\Projetos\Saturn\servidor\ui\icone_saturno.ico
 Compression=lzma
 SolidCompression=yes
 
@@ -35,8 +35,8 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "F:\LUCAS\Projetos\Saturn\servidor\bin\deploy\bin\server.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
-Source: "F:\LUCAS\Projetos\Saturn\servidor\bin\deploy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "F:\LUCAS\Projetos\Saturn\servidor\bin\deploy\x86\bin\server32.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "F:\LUCAS\Projetos\Saturn\servidor\bin\deploy\x86\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

@@ -19,7 +19,7 @@ class rede
 		bool conectarRedeWifi(const char *nome_rede, const char *nome_senha, uint8_t *status);
 		bool enviarLeituraSonar(double valor);
 	private:
-		const char *endereco_ip;
+		char endereco_ip[16];
 };
 
 #endif

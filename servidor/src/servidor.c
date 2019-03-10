@@ -11,6 +11,7 @@
 #include <sqlite3.h>
 #include <io.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 /*
     Cria um socket TCP para envio e recepção de dados
@@ -35,7 +36,7 @@ int vincular_servidor(SOCKET sock, const char *IP, int porta)
     endereco_sock.sin_addr.S_un.S_addr = inet_addr(IP);
 
     // Inicia o vínculo
-    return bind(sock,&endereco_sock, sizeof(endereco_sock));
+    return bind(sock, (struct sockaddr*)&endereco_sock, sizeof(endereco_sock));
 }
 
 /*
@@ -91,7 +92,7 @@ int ler(SOCKET sock, void *buffer, int tam_buffer)
 /*
     É a função principal do servidor. Aqui toda a parte de comunicação com o arduino é realizada
 */
-extern void executar(void *param)
+extern void *executar(void *param)
 {
     SOCKET p = (SOCKET)param;
     struct host_remoto *host = NULL;
@@ -102,13 +103,15 @@ extern void executar(void *param)
     int flags_abertura;
     char *errMsg = 0;
     SYSTEMTIME *systime = NULL;
-
+    
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    
     // Verificar se já existe um banco de dados em disco 
     systime = (SYSTEMTIME*)malloc(sizeof(SYSTEMTIME));
     if(systime == NULL)
     {
         fprintf(stderr, "Erro ao reservar memoria: %lu\n", GetLastError());
-        return;
+        return NULL;
     }
 
     GetLocalTime(systime);
@@ -130,7 +133,7 @@ extern void executar(void *param)
     if(sqlite_status != SQLITE_OK) 
     {
         fprintf(stderr, "Falha ao abrir banco de dados: %s\n", sqlite3_errmsg(banco));
-        return;
+        return NULL;
     }
 
     /*
@@ -141,7 +144,7 @@ extern void executar(void *param)
         ---------------------------------------
     */
 
-    _snprintf(instrucao_sql, TAM(instrucao_sql), "CREATE TABLE IF NOT EXISTS %s (%s DOUBLE, %s CHAR(20));", 
+    _snprintf(instrucao_sql, TAM(instrucao_sql), "CREATE TABLE IF NOT EXISTS %s (%s REAL, %s TEXT);", 
     NOME_TABELA, 
     COLUNA_DIST, 
     COLUNA_TSTAMP);
@@ -155,13 +158,13 @@ extern void executar(void *param)
         fprintf(stderr, "Falha ao executar instrucao SQL: %s\n", errMsg);
 
         sqlite3_close_v2(banco);
-        return;
+        return NULL;
     }
 
     // Ligar o servidor
     if(escutar_conexoes(p) != SOCKET_ERROR)
     {
-        fprintf(stderr, "Aguardando conexões ...\n");
+        fprintf(stderr, "Aguardando conexoes ...\n");
 
         interrompido = false;
         interromper = false;
@@ -199,14 +202,28 @@ extern void executar(void *param)
                         fprintf(stderr, "Erro fatal: falha ao obter timestamp. O programa nao podera continuar\n");
                         Sleep(5000);
                         exit(-1);
+                    }  
+
+                    char buffer_distancia[6];
+                    int pos = 0;
+
+                    snprintf(buffer_distancia, TAM(buffer_distancia), "%.2lf", distancia);
+                    
+                    // Esta operação é necessária, pois existe o risco de que haja vírgula no lugar do ponto ao formatar o número flutuante
+                    while(buffer_distancia[pos])
+                    {
+                        if(buffer_distancia[pos] == ',')
+                            buffer_distancia[pos] = '.';
+
+                        pos++;
                     }
 
                     // Insere a distância lida no banco de dados
-                    snprintf(instrucao_sql, TAM(instrucao_sql), "INSERT INTO %s (%s,%s) VALUES ('%.4lf','%s');",
+                    snprintf(instrucao_sql, TAM(instrucao_sql), "INSERT INTO %s (%s,%s) VALUES (%s,'%s');",
                     NOME_TABELA, 
                     COLUNA_DIST, 
                     COLUNA_TSTAMP, 
-                    distancia, 
+                    buffer_distancia, 
                     timestamp);
 
                     // É necessário liberar a memória alocada
@@ -241,6 +258,8 @@ extern void executar(void *param)
     } else {
         fprintf(stderr, "Falha ao aguardar conexões: %d\n", WSAGetLastError());
     }
+
+    return NULL;
 }
 
 // Cria um timestamp e retorna em formato de string. O formato adotado é: dd/mm/yyyy hh:mm:ss
@@ -262,7 +281,7 @@ char *compilar_timestamp()
     // Obtém a hora local
     GetLocalTime(timestamp);
 
-    //Formata o timestamp
+    //Formata o timestamp no padrão ISO 8601
     snprintf(buffer_tempo, tamanho_timestamp, "%02d/%02d/%02d %02d:%02d:%02d", 
     timestamp->wDay,
     timestamp->wMonth,
@@ -280,7 +299,6 @@ char *compilar_timestamp()
 // Solicita a interrupcao do servidor
 void solicitar_interrupcao()
 {
-
     // Se o servidor estiver aguardando conexões, não será possível interromper a thread de imediato
     if(!interrompido)
         interromper = true;
