@@ -78,9 +78,7 @@ bool rede::enviarLeituraSonar(double valor)
 		iConnect = arduino.connect(endereco_ip, porta);
 
 		if(!iConnect)
-		{
 			return false;
-		}
 
 		// Ativa o flag para manter a conexão ativa
 		arduino.keepAlive();

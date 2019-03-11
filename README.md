@@ -20,9 +20,15 @@ O Saturn é um sistema que permite monitorar remotamente os dados de um sonar, n
     * Abra o shell do msys 
     * Digite os comandos a seguir: 
     * **cd servidor**
-    * **make**
-    * **make run** - para executar o programa
+    * **./compilar <64 ou 32>**
+	* **./compilar 32** irá compilar o programa para a plataforma 32 bits
+	* **./compilar 64** irá compilar o programa para a plataforma 64 bits
+    * **make -f Makefile_x86 run** - para executar o programa 32 bits
+	* **make -f Makefile_x64 run** - para executar o programa 64 bits
 
 # Autor
-- Lucas Vieira de Jesus <lucas.engen.cc@gmail.com>
+* Lucas Vieira de Jesus - <lucas.engen.cc@gmail.com>
 
+# Plataformas suportadas
+* Windows (x86 e x64)
+* Arduino

@@ -21,10 +21,10 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={pf}\{#MyAppName}
 DisableProgramGroupPage=yes
-LicenseFile=F:\LUCAS\Projetos\Saturn\instalador\LICENSE.txt
-OutputDir=F:\LUCAS\Projetos\Saturn\instalador\x86
+LicenseFile={#SourcePath}\..\LICENSE.txt
+OutputDir={#SourcePath}
 OutputBaseFilename=Saturn-0.1.0-x86
-SetupIconFile=F:\LUCAS\Projetos\Saturn\servidor\ui\icone_saturno.ico
+SetupIconFile={#SourcePath}\..\..\servidor\ui\icone_saturno.ico
 Compression=lzma
 SolidCompression=yes
 
@@ -35,8 +35,8 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "F:\LUCAS\Projetos\Saturn\servidor\bin\deploy\x86\bin\server32.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
-Source: "F:\LUCAS\Projetos\Saturn\servidor\bin\deploy\x86\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourcePath}\..\..\servidor\bin\deploy\x86\bin\server32.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#SourcePath}\..\..\servidor\bin\deploy\x86\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
@@ -45,4 +45,7 @@ Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\bin\{#MyAppExeName}"; Tas
 
 [Run]
 Filename: "{app}\bin\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+
 

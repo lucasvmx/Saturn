@@ -14,6 +14,6 @@ void ui_print(GtkTextBuffer *buffer, const gchar *texto, ...);
 void limpar_texto(GtkTextBuffer *buffer);
 
 // Janela de registros
-GtkWindow *desenhar_janela_registros();
+GtkWindow *desenhar_janela_registros(GtkWindow *janela_mae);
 
 #endif

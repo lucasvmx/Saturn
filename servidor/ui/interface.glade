@@ -129,10 +129,12 @@
   <object class="GtkTextBuffer" id="buffer_texto_registro"/>
   <object class="GtkWindow" id="janela_registros">
     <property name="can_focus">False</property>
+    <property name="has_focus">True</property>
     <property name="resizable">False</property>
     <property name="window_position">center-on-parent</property>
     <property name="destroy_with_parent">True</property>
     <property name="type_hint">dialog</property>
+    <property name="accept_focus">False</property>
     <child>
       <placeholder/>
     </child>
@@ -149,8 +151,6 @@
               <object class="GtkLabel">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="margin_left">5</property>
-                <property name="margin_right">5</property>
                 <property name="label" translatable="yes">Ordenar por:</property>
               </object>
               <packing>
@@ -166,7 +166,6 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
-                <property name="margin_right">5</property>
                 <property name="draw_indicator">True</property>
                 <property name="group">radio_button_distancia</property>
               </object>
@@ -183,7 +182,6 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">False</property>
-                <property name="margin_right">5</property>
                 <property name="draw_indicator">True</property>
                 <property name="group">radio_button_data_hora</property>
               </object>
@@ -200,8 +198,6 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
-                <property name="margin_left">5</property>
-                <property name="margin_right">6</property>
                 <property name="margin_top">5</property>
                 <property name="margin_bottom">5</property>
               </object>
@@ -214,12 +210,25 @@
               </packing>
             </child>
             <child>
+              <object class="GtkCheckButton" id="check_abrir_planilha">
+                <property name="label" translatable="yes">Abrir planilha automaticamente</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="draw_indicator">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">4</property>
+              </packing>
+            </child>
+            <child>
               <object class="GtkButton" id="botao_escolher">
                 <property name="label">Abrir</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
-                <property name="margin_right">6</property>
                 <property name="margin_top">5</property>
                 <property name="margin_bottom">5</property>
                 <property name="always_show_image">True</property>
@@ -227,7 +236,7 @@
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">4</property>
+                <property name="position">5</property>
                 <property name="non_homogeneous">True</property>
               </packing>
             </child>
@@ -240,23 +249,27 @@
         <child>
           <object class="GtkScrolledWindow">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
+            <property name="can_focus">False</property>
+            <property name="vscrollbar_policy">always</property>
             <property name="shadow_type">etched-in</property>
             <property name="min_content_height">220</property>
+            <property name="kinetic_scrolling">False</property>
+            <property name="overlay_scrolling">False</property>
+            <property name="max_content_height">400</property>
             <property name="propagate_natural_width">True</property>
             <property name="propagate_natural_height">True</property>
             <child>
               <object class="GtkTextView" id="texto_registro">
                 <property name="visible">True</property>
-                <property name="can_focus">True</property>
+                <property name="can_focus">False</property>
                 <property name="margin_left">5</property>
-                <property name="margin_right">6</property>
+                <property name="margin_right">5</property>
                 <property name="margin_top">5</property>
                 <property name="margin_bottom">5</property>
-                <property name="hexpand">True</property>
-                <property name="vexpand">True</property>
                 <property name="editable">False</property>
+                <property name="cursor_visible">False</property>
                 <property name="buffer">buffer_texto_registro</property>
+                <property name="accepts_tab">False</property>
               </object>
             </child>
           </object>

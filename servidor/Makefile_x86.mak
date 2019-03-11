@@ -1,3 +1,5 @@
+# Makefile para compilar a versão 32 bits do Saturn
+
 CC=gcc
 SOURCES=src/main.c src/interface.c src/servidor.c
 OUTPUT=bin/server32.exe

@@ -116,7 +116,7 @@ extern void *executar(void *param)
 
     GetLocalTime(systime);
     
-    _snprintf(nome_banco_dados, TAM(nome_banco_dados), "leitura_%02d%02d%02d.sdb", systime->wDay, systime->wMonth, systime->wYear);
+    _snprintf(nome_banco_dados, TAM(nome_banco_dados), "%s\\leitura_%02d%02d%02d.sdb", PASTA_DATABASE, systime->wDay, systime->wMonth, systime->wYear);
     
     // Libera a memória alocada
     free(systime);
@@ -231,9 +231,8 @@ extern void *executar(void *param)
 #ifdef DEBUG 
                     fprintf(stderr, "[SQL] %s\n", instrucao_sql);
 #endif
-                    if(sqlite3_exec(banco, instrucao_sql, NULL, NULL, &errMsg) != SQLITE_OK) {
+                    if(sqlite3_exec(banco, instrucao_sql, NULL, NULL, &errMsg) != SQLITE_OK)
                         fprintf(stderr, "Falha ao passar informacoes para o banco de dados: %s\n", errMsg);
-                    }
                 }
 
                 fprintf(stderr, "Conexao terminada\n");

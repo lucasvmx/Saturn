@@ -26,14 +26,11 @@ static void on_botao_consultar_registros_salvos_clicked();
 static void on_botao_escolher_clicked();
 static void on_botao_consultar_clicked();
 static void on_janela_registros_destroyed();
-
-// Função executada durante a realização da consulta no banco de dados
-static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char **nomes_colunas);
+static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char **nomes_colunas); // Executada durante a realização da consulta no banco de dados
 
 // Planilha do excel
 lxw_workbook *planilha = NULL;
 lxw_worksheet *folha_planilha = NULL;
-static const char *extensao_planilha = "xlsx";
 
 // Utilizados pela thread do servidor
 bool interromper;
@@ -41,22 +38,23 @@ bool interrompido;
 sqlite3 *banco = NULL;
 
 // Componentes da interface gráfica principal
-GtkLabel *label = NULL;
-GtkTextView *text_view = NULL;
-GtkButton *botao_iniciar_servidor = NULL;
-GtkApplicationWindow *janela = NULL;
-GtkButton *botao_consultar_registros_salvos = NULL;
+static GtkLabel *label = NULL;
+static GtkTextView *text_view = NULL;
+static GtkButton *botao_iniciar_servidor = NULL;
+static GtkApplicationWindow *janela = NULL;
+static GtkButton *botao_consultar_registros_salvos = NULL;
 
 // Componentes da janela de registros
 static GtkWindow *janela_registros = NULL;
-GtkTextView *texto_registro = NULL;
-GtkButton *botao_consultar = NULL;
-GtkButton *botao_escolher = NULL;
-GtkRadioButton *radio_button_data_hora = NULL;
-GtkRadioButton *radio_button_distancia = NULL;
+static GtkTextView *texto_registro = NULL;
+static GtkButton *botao_consultar = NULL;
+static GtkButton *botao_escolher = NULL;
+static GtkRadioButton *radio_button_data_hora = NULL;
+static GtkRadioButton *radio_button_distancia = NULL;
+static GtkCheckButton *check_abrir_planilha = NULL;
 
 // Outras variáveis globais
-GtkTextBuffer *buffer_texto = NULL, *buffer_texto_registro = NULL;
+static GtkTextBuffer *buffer_texto = NULL, *buffer_texto_registro = NULL;
 
 const char *caminho_banco_dados = NULL; 	// Armazena o banco de dados que o usuário deseja consultar
 static int num_registros = 0;				// armazena a quantidade de registros localizados no banco de dados
@@ -118,10 +116,16 @@ GObject *desenhar_janela_principal(int argc, char **argv)
 	// Exibe a interface e a redimensiona
 	gtk_widget_show(GTK_WIDGET(janela));
 	gtk_widget_set_size_request(GTK_WIDGET(janela), LARGURA, ALTURA);
-	
+
 	// Muda o título da janela
-	gtk_window_set_title(GTK_WINDOW(janela), "Saturn - servidor");
-	
+#ifdef __64BIT__
+	gtk_window_set_title(GTK_WINDOW(janela), "Saturn - servidor (64 bits)");
+#elif __32BIT__
+	gtk_window_set_title(GTK_WINDOW(janela), "Saturn - servidor (32 bits)");
+#else
+	#error "Plataforma não suportada"
+#endif
+
 	// Inicializa as variáveis da thread
 	interrompido = true;
 	interromper = false;
@@ -288,7 +292,7 @@ static void on_botao_consultar_registros_salvos_clicked()
 {
 	if(janela_registros == NULL)
 	{
-		desenhar_janela_registros();
+		desenhar_janela_registros(GTK_WINDOW(janela));
 		gtk_widget_show(GTK_WIDGET(janela_registros));
 		
 		// Exibe um texto de ajuda
@@ -303,7 +307,7 @@ static void on_botao_consultar_registros_salvos_clicked()
 			passar um argumento nulo para a função gtk_widget_is_visible() ...
 		*/
 
-		desenhar_janela_registros();
+		desenhar_janela_registros(GTK_WINDOW(janela));
 		gtk_widget_show(GTK_WIDGET(janela_registros));
 	}	
 	else
@@ -330,9 +334,9 @@ void ui_print(GtkTextBuffer *buffer, const gchar *texto, ...)
 }
 
 // Carrega a janela de registros na memória para que ela seja exibida quando necessário
-GtkWindow *desenhar_janela_registros()
+GtkWindow *desenhar_janela_registros(GtkWindow *janela_mae)
 {
-	GtkBuilder *builder = gtk_builder_new_from_file( "interface.glade" );
+	GtkBuilder *builder = gtk_builder_new_from_file(arquivo_interface);
 
 	if(builder == NULL)
 	{
@@ -348,6 +352,7 @@ GtkWindow *desenhar_janela_registros()
 	radio_button_data_hora = (GtkRadioButton*)gtk_builder_get_object(builder, "radio_button_data_hora");
 	radio_button_distancia = (GtkRadioButton*)gtk_builder_get_object(builder, "radio_button_distancia");
 	buffer_texto_registro = (GtkTextBuffer*)gtk_builder_get_object(builder, "buffer_texto_registro");
+	check_abrir_planilha = (GtkCheckButton*)gtk_builder_get_object(builder, "check_abrir_planilha");
 
 	// Verifica se todos foram carregados corretamente
 	if(janela_registros == NULL || texto_registro == NULL || botao_consultar == NULL || botao_escolher == NULL ||
@@ -362,15 +367,11 @@ GtkWindow *desenhar_janela_registros()
 	g_signal_connect(botao_escolher, "clicked", on_botao_escolher_clicked, NULL);
 	g_signal_connect(janela_registros, "destroy", on_janela_registros_destroyed, NULL);
 
-	// Ajustar o tamanho da janela
-	gtk_widget_set_size_request(GTK_WIDGET(janela_registros), LARGURA + 100, ALTURA);
+	gtk_widget_set_size_request(GTK_WIDGET(janela_registros), LARGURA + 100, ALTURA); 							// Ajustar o tamanho da janela
+	gtk_window_set_title(GTK_WINDOW(janela_registros), "Consulta de registros"); 								// Editar o título
+	gtk_window_set_icon_from_file(GTK_WINDOW(janela_registros), "iconfinder_search-database_49618.ico", NULL); 	// Edita o ícone
+	gtk_widget_set_parent(GTK_WIDGET(janela_registros), GTK_WIDGET(janela_mae));	// define a janela-mãe
 
-	// Editar o título
-	gtk_window_set_title(GTK_WINDOW(janela_registros), "Consulta de registros");
-
-	// Edita o ícone
-	gtk_window_set_icon_from_file(GTK_WINDOW(janela_registros), "iconfinder_search-database_49618.ico", NULL);
-	
 	return janela_registros;
 }
 
@@ -414,6 +415,7 @@ static void on_botao_escolher_clicked()
 #ifdef DEBUG
 		g_print( "Arquivo selecionado: %s\n", caminho_banco_dados);
 #endif
+		limpar_texto(buffer_texto_registro);
 		ui_print(buffer_texto_registro, "Arquivo selecionado: %s\n", caminho_banco_dados);
 	}
 
@@ -425,14 +427,11 @@ static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char 
 {
 	int i = 0;
 
-	// Parâmetro não utilizado
-	(void)p;
+	// Parâmetros não utilizados
+	NAO_UTILIZADO(p);
+	NAO_UTILIZADO(nomes_colunas);
 
-#ifndef DEBUG
-	(void)nomes_colunas;
-#endif
-
-	// Provavelmente ao abrir a planilha no excel 2016, o usuário receberá uma mensagem perguntando se ele deseja recuperar a planilha
+	// FIXME: Provavelmente, ao abrir a planilha no excel 2016, o usuário receberá uma mensagem perguntando se ele deseja recuperar a planilha...
 	if(num_registros == 0)
 	{
 		// Escreve a primeira parte da planilha
@@ -446,9 +445,7 @@ static int sql_callback(void *p, int numero_colunas, char **dados_colunas, char 
 		worksheet_write_string(folha_planilha, num_registros+1, 0, dados_colunas[i], NULL);
 		worksheet_write_string(folha_planilha, num_registros+1, 1, dados_colunas[i+1], NULL);
 		ui_print(buffer_texto_registro, "Distância: %s cm - Data e Hora: %s\n", dados_colunas[i], dados_colunas[i+1]);
-	}		
-
-	//ui_print(buffer_texto_registro, "%s - %s\n", dados_colunas[i], dados_colunas[i + 1]);
+	}
 
 	num_registros++;
 
@@ -513,7 +510,7 @@ static void on_botao_consultar_clicked()
 #endif
 
 	// Cria o nome do arquivo
-	char nome_planilha[32];
+	char nome_planilha[64];
 	SYSTEMTIME *tempo = (SYSTEMTIME*)malloc(sizeof(SYSTEMTIME));
 
 	if(tempo == NULL)
@@ -524,8 +521,8 @@ static void on_botao_consultar_clicked()
 	}
 
 	GetLocalTime(tempo);
-	_snprintf(nome_planilha, TAM(nome_planilha), "Registro_%02d%02d%02d_%02d%02d%02d.%s", tempo->wDay, tempo->wMonth, tempo->wYear,
-	tempo->wHour, tempo->wMinute, tempo->wSecond, extensao_planilha);
+	_snprintf(nome_planilha, TAM(nome_planilha), "%s\\Registro_%02d%02d%02d_%02d%02d%02d.xlsx", PASTA_PLANILHAS, tempo->wDay, tempo->wMonth, tempo->wYear,
+	tempo->wHour, tempo->wMinute, tempo->wSecond);
 
 	// Libera a memória alocada
 	free(tempo);
@@ -552,7 +549,7 @@ static void on_botao_consultar_clicked()
 #ifdef DEBUG
 		g_print( "Falha ao executar SQL: %s\n", msgErro);
 #endif
-		ui_print(buffer_texto_registro, "Erro ao realizar consulta no banco de dados\n");
+		ui_print(buffer_texto_registro, "Erro ao realizar consulta no banco de dados: %s\n", msgErro);
 		
 		// fecha a planilha
 		workbook_close(planilha);
@@ -585,13 +582,17 @@ static void on_botao_consultar_clicked()
 	else
 		ui_print(buffer_texto_registro, "\nRegistro salvo em: %s\\%s\n", pasta_atual, nome_planilha);
 
-	// TODO: dar ao usuário a opção de escolher se deseja ou não salvar os registros em uma planilha
-	HINSTANCE is = ShellExecuteA(0, "open", nome_planilha, 0, 0, 0);
-	
-	if(is < (HINSTANCE)32)
-		ui_print(buffer_texto_registro, "Erro ao abrir planilha\n");
-	else
-		ui_print(buffer_texto_registro, "Planilha aberta com sucesso\n");
+	bool abrir_planilha = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(check_abrir_planilha));
+
+	if(abrir_planilha)
+	{
+		HINSTANCE is = ShellExecuteA(0, "open", nome_planilha, 0, 0, 0);
+		
+		if(is < (HINSTANCE)32)
+			ui_print(buffer_texto_registro, "Erro ao abrir planilha\n");
+		else
+			ui_print(buffer_texto_registro, "Planilha aberta com sucesso\n");
+	}
 
 	num_registros = 0;
 }
